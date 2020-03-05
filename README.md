@@ -1,3 +1,7 @@
+## PAUSED
+
+The project [node_everywhere](https://github.com/lightdiscord/node_everywhere) use a simpler approach.
+
 # Translator
 
 Output code in different languages from a graph.
