@@ -1,3 +1,15 @@
+#[derive(Default)]
+pub struct IdentifierFactory(usize);
+
+impl IdentifierFactory {
+    pub fn new(&mut self) -> Identifier {
+        let identifier = Identifier::new(self.0);
+
+        self.0 += 1;
+        identifier
+    }
+}
+
 pub trait Convert {
     fn convert(&self) -> String;
 }
@@ -30,19 +42,105 @@ pub enum Type {
 impl Convert for Type {
     fn convert(&self) -> String {
         match self {
-            Type::Int32 => "int".to_string()
+            Type::Int32 => "int".to_string(),
         }
     }
 }
 
+pub struct Remainder<A, B>(pub A, pub B);
+
+impl<A: Convert, B: Convert> Convert for Remainder<A, B> {
+    fn convert(&self) -> String {
+        let Remainder(a, b) = self;
+
+        format!("{} % {}", a.convert(), b.convert())
+    }
+}
+
+pub struct Divide<A, B>(pub A, pub B);
+
+impl<A: Convert, B: Convert> Convert for Divide<A, B> {
+    fn convert(&self) -> String {
+        let Divide(a, b) = self;
+
+        format!("{} / {}", a.convert(), b.convert())
+    }
+}
+
+pub struct Plus<A, B>(pub A, pub B);
+
+impl<A: Convert, B: Convert> Convert for Plus<A, B> {
+    fn convert(&self) -> String {
+        let Plus(a, b) = self;
+
+        format!("{} + {}", a.convert(), b.convert())
+    }
+}
+
+pub enum Comparison<A, B> {
+    Equals(A, B),
+    NotEquals(A, B),
+    GreaterThan(A, B),
+    LessThan(A, B)
+}
+
+impl<A: Convert, B: Convert> Convert for Comparison<A, B> {
+    fn convert(&self) -> String {
+        match self {
+            Comparison::Equals(a, b) => format!("{} == {}", a.convert(), b.convert()),
+            Comparison::NotEquals(a, b) => format!("{} != {}", a.convert(), b.convert()),
+            Comparison::GreaterThan(a, b) => format!("{} > {}", a.convert(), b.convert()),
+            Comparison::LessThan(a, b) => format!("{} < {}", a.convert(), b.convert())
+        }
+    }
+}
+
+pub struct Call<A>(pub A, pub Vec<Box<dyn Convert>>);
+
+impl<A: Convert> Convert for Call<A> {
+    fn convert(&self) -> String {
+        let Call(function, parameters) = self;
+        
+        let parameters = parameters.iter().map(|param| param.convert()).collect::<Vec<String>>().join(", ");
+
+        format!("{}({})", function.convert(), parameters)
+    }
+}
+
 pub enum Instruction {
-    Return(Box<dyn Convert>)
+    Return(Box<dyn Convert>),
+    Assign(Identifier, Box<dyn Convert>),
+    If {
+        condition: Box<dyn Convert>,
+        instructions: Vec<Instruction>
+    },
+    While {
+        condition: Box<dyn Convert>,
+        instructions: Vec<Instruction>
+    }
 }
 
 impl Convert for Instruction {
     fn convert(&self) -> String {
         match self {
-            Instruction::Return(data) => format!("return {};", data.convert())
+            Instruction::Return(data) => format!("return {};", data.convert()),
+            Instruction::Assign(identifier, data) => format!("{} = {};", identifier.convert(), data.convert()),
+            Instruction::If { condition, instructions } => {
+                let instructions = instructions.iter()
+                    .map(|instruction| instruction.convert())
+                    .collect::<Vec<String>>()
+                    .join("\n");
+
+                format!("if ({}) {{ {} }}", condition.convert(), instructions)
+            }
+            Instruction::While { condition, instructions } => {
+                let instructions = instructions.iter()
+                    .map(|instruction| instruction.convert())
+                    .collect::<Vec<String>>()
+                    .join("\n");
+
+                format!("while ({}) {{\n{}\n}}", condition.convert(), instructions)
+            }
         }
     }
 }
