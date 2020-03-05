@@ -35,6 +35,7 @@ impl Convert for Identifier {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum Type {
     Int32
 }
@@ -77,6 +78,24 @@ impl<A: Convert, B: Convert> Convert for Plus<A, B> {
     }
 }
 
+impl Convert for (usize, &Vec<Instruction>) {
+    fn convert(&self) -> String {
+        let (padding, instructions) = self;
+        let padding = "\t".repeat(*padding);
+
+        instructions.iter()
+            .map(|instruction| format!("{}{}\n", padding, instruction.convert()))
+            .collect::<Vec<String>>()
+            .join("")
+    }
+}
+
+impl Convert for Vec<Instruction> {
+    fn convert(&self) -> String {
+        (1, self).convert()
+    }
+}
+
 pub enum Comparison<A, B> {
     Equals(A, B),
     NotEquals(A, B),
@@ -108,6 +127,10 @@ impl<A: Convert> Convert for Call<A> {
 }
 
 pub enum Instruction {
+    ReadLn(Variable),
+    WriteLn(Variable),
+    Declare(Variable),
+
     Return(Box<dyn Convert>),
     Assign(Identifier, Box<dyn Convert>),
     If {
@@ -117,34 +140,43 @@ pub enum Instruction {
     While {
         condition: Box<dyn Convert>,
         instructions: Vec<Instruction>
-    }
+    },
+
+    /// Should not be used because it is language specific.
+    Custom(String)
 }
 
 impl Convert for Instruction {
     fn convert(&self) -> String {
         match self {
+            Instruction::ReadLn(variable) => {
+                let instructions = vec![
+                    Instruction::Declare(*variable),
+                    Instruction::Custom(format!(r#"scanf("%d", &{});"#, variable.identifier.convert()))
+                ];
+
+                instructions.convert()
+            }
+            Instruction::WriteLn(variable) => {
+                Instruction::Custom(format!(r#"printf("%d", {});"#, variable.identifier.convert())).convert()
+            },
+            Instruction::Declare(variable) => {
+                format!("{} {};", variable.r#type.convert(), variable.identifier.convert())
+            },
             Instruction::Return(data) => format!("return {};", data.convert()),
             Instruction::Assign(identifier, data) => format!("{} = {};", identifier.convert(), data.convert()),
             Instruction::If { condition, instructions } => {
-                let instructions = instructions.iter()
-                    .map(|instruction| instruction.convert())
-                    .collect::<Vec<String>>()
-                    .join("\n");
-
-                format!("if ({}) {{ {} }}", condition.convert(), instructions)
+                format!("if ({}) {{\n{}}}", condition.convert(), instructions.convert())
             }
             Instruction::While { condition, instructions } => {
-                let instructions = instructions.iter()
-                    .map(|instruction| instruction.convert())
-                    .collect::<Vec<String>>()
-                    .join("\n");
-
-                format!("while ({}) {{\n{}\n}}", condition.convert(), instructions)
-            }
+                format!("while ({}) {{\n{}}}", condition.convert(), instructions.convert())
+            },
+            Instruction::Custom(content) => content.to_string()
         }
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Variable {
     pub identifier: Identifier,
     pub r#type: Type
@@ -190,17 +222,12 @@ impl Convert for Function {
             .collect::<Vec<String>>()
             .join(", ");
 
-        let instructions = self.instructions.iter()
-            .map(|instruction| instruction.convert())
-            .collect::<Vec<String>>()
-            .join("\n\t");
-
         format!(
-            "{} {}({}) {{\n\t{}\n}}",
+            "{} {}({}) {{\n{}}}",
             self.returns.convert(),
             self.identifier.convert(),
             parameters,
-            instructions
+            self.instructions.convert()
         )
     }
 }

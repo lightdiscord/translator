@@ -77,20 +77,48 @@ fn meeting_point(factory: &mut IdentifierFactory, next_item: Identifier) -> Func
     }
 }
 
+fn entry(factory: &mut IdentifierFactory, meeting_point: Identifier) -> Function {
+    let identifier = factory.new();
+
+    let a = factory.new();
+    let a_variable = Variable { identifier: a, r#type: Type::Int32 };
+    let b = factory.new();
+    let b_variable = Variable { identifier: b, r#type: Type::Int32 };
+
+    let result = factory.new();
+    let result_variable = Variable { identifier: result, r#type: Type::Int32 };
+
+    Function {
+        identifier,
+        returns: Type::Int32,
+        parameters: vec![],
+        instructions: vec![
+            Instruction::ReadLn(a_variable),
+            Instruction::ReadLn(b_variable),
+            Instruction::Declare(result_variable),
+            Instruction::Assign(result, Box::new(Call(meeting_point, vec![Box::new(a), Box::new(b)]))),
+            Instruction::WriteLn(result_variable),
+            Instruction::Return(Box::new(0))
+        ]
+    }
+}
+
 fn main() {
     let mut identifier_factory = IdentifierFactory::default();
 
     let sum_digits = sum_digits(&mut identifier_factory);
     let next_item = next_item(&mut identifier_factory, sum_digits.identifier);
     let meeting_point = meeting_point(&mut identifier_factory, next_item.identifier);
+    let entry = entry(&mut identifier_factory, meeting_point.identifier);
 
     let graph = Graph {
+        main: Some(entry.identifier),
         functions: vec![
             sum_digits,
             next_item,
-            meeting_point
-        ],
-        main: None
+            meeting_point,
+            entry
+        ]
     };
 
     println!("{}", graph.convert());
